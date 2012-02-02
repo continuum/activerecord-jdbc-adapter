@@ -162,8 +162,26 @@ module ArJdbc
             sql << " FETCH FIRST #{limit} ROWS ONLY"
           end
         else
+          sql =~ /ORDER BY (?<rest>.+)/
+          order = ""
+
+          if $1
+            order = ["ORDER BY",
+              $1.split(' ').map { |s|
+                if ["asc", "desc", "ASC", "DESC"].include? s
+                  s
+                else
+                  sql =~ /#{s} AS (?<table_alias>\w+)/
+                  $1
+                end
+              }
+            ].compact.join(' ')
+
+            sql.gsub!(/ ORDER BY .+/i, '')
+          end
+
           offset = offset.to_i
-          sql.gsub!(/SELECT/i, 'SELECT B.* FROM (SELECT A.*, row_number() over () AS internal$rownum FROM (SELECT')
+          sql.gsub!(/SELECT/i, "SELECT B.* FROM (SELECT A.*, row_number() over (#{order}) AS internal$rownum FROM (SELECT")
           sql << ") A ) B WHERE B.internal$rownum > #{offset} AND B.internal$rownum <= #{limit + offset}"
         end
       end
